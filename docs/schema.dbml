@@ -1,0 +1,128 @@
+// Схема базы данных retail_dwh — многомерная модель «звезда».
+// Формат DBML (dbml.dbdiagram.io). Визуализация: https://dbdiagram.io
+// Соответствует database/02_create_schema.sql.
+
+Project retail_dwh {
+  database_type: 'MariaDB'
+  Note: '''
+    Учебное хранилище данных розничных онлайн-продаж (Online Retail II).
+    Слой staging (stg_online_retail) + звезда: fact_sales и 4 измерения.
+    Поверх звезды определены витрины-представления (см. database/04_analytics_queries.sql):
+    v_revenue_monthly, v_top_products, v_sales_by_country,
+    v_customer_rfm, v_returns_monthly, v_cohort_retention.
+  '''
+}
+
+// ───────────────────────── STAGING ─────────────────────────
+
+Table stg_online_retail {
+  invoice        varchar(32)
+  stock_code     varchar(32)
+  description    varchar(512)
+  quantity       varchar(32)
+  invoice_date   varchar(32)
+  price          varchar(32)
+  customer_id    varchar(32)
+  country        varchar(128)
+  _source_sheet  varchar(32)  [not null, note: 'лист Excel-источника']
+  _loaded_at     datetime     [not null, note: 'момент загрузки']
+  _row_hash      char(40)     [not null, note: 'SHA-1 значимых полей (дедуп, идемпотентность)']
+
+  indexes {
+    _row_hash [name: 'ix_stg_hash']
+    invoice   [name: 'ix_stg_invoice']
+  }
+  Note: 'Сырые строки источника «как есть»; содержательные поля — текстовые.'
+}
+
+// ───────────────────────── ИЗМЕРЕНИЯ ─────────────────────────
+
+Table dim_date {
+  date_key      int          [pk, note: 'YYYYMMDD']
+  full_date     date         [not null]
+  year          smallint     [not null]
+  quarter       tinyint      [not null]
+  month         tinyint      [not null]
+  month_name    varchar(16)  [not null]
+  ym            char(7)      [not null, note: 'YYYY-MM']
+  week_iso      tinyint      [not null]
+  day_of_month  tinyint      [not null]
+  day_of_week   tinyint      [not null, note: '1=Пн ... 7=Вс']
+  day_name      varchar(16)  [not null]
+  is_weekend    tinyint      [not null]
+
+  indexes {
+    ym        [name: 'ix_date_ym']
+    full_date [name: 'ix_date_full']
+  }
+}
+
+Table dim_customer {
+  customer_key      int          [pk, note: '-1 — покупка без идентификатора («гость»)']
+  customer_id       int          [null, note: 'натуральный ключ клиента']
+  is_guest          tinyint      [not null, default: 0]
+  country           varchar(128) [not null, default: 'Unknown', note: 'страна последнего заказа']
+  first_order_date  date         [null]
+  last_order_date   date         [null]
+  orders_count      int          [not null, default: 0]
+
+  indexes {
+    customer_id [name: 'ix_cust_id']
+    country     [name: 'ix_cust_country']
+  }
+}
+
+Table dim_product {
+  product_key   int           [pk]
+  stock_code    varchar(32)   [not null, unique]
+  description   varchar(512)  [not null, default: '', note: 'эталонное (самое частое) наименование']
+  category      varchar(64)   [not null, default: 'OTHER', note: 'укрупнённая категория (эвристика по описанию)']
+  is_service    tinyint       [not null, default: 0, note: 'POST, MANUAL, BANK CHARGES ...']
+
+  indexes {
+    category [name: 'ix_product_category']
+  }
+}
+
+Table dim_country {
+  country_key   int           [pk]
+  country_name  varchar(128)  [not null, unique]
+  region        varchar(32)   [not null, default: 'Other', note: 'UK / Europe / World / Other']
+}
+
+// ───────────────────────── ФАКТ ─────────────────────────
+
+Table fact_sales {
+  sales_key     bigint         [pk, increment]
+  date_key      int            [not null, ref: > dim_date.date_key]
+  customer_key  int            [not null, ref: > dim_customer.customer_key]
+  product_key   int            [not null, ref: > dim_product.product_key]
+  country_key   int            [not null, ref: > dim_country.country_key]
+  invoice_no    varchar(32)    [not null]
+  invoice_ts    datetime       [not null]
+  quantity      int            [not null, note: 'для возвратов отрицательное']
+  unit_price    "decimal(10,2)" [not null, note: 'цена за единицу, GBP']
+  gross_amount  "decimal(12,2)" [not null, note: 'quantity * unit_price']
+  is_return     tinyint        [not null, default: 0, note: '1 — счёт-возврат (Invoice начинается с C)']
+
+  indexes {
+    date_key     [name: 'ix_fact_date']
+    customer_key [name: 'ix_fact_customer']
+    product_key  [name: 'ix_fact_product']
+    country_key  [name: 'ix_fact_country']
+    invoice_no   [name: 'ix_fact_invoice']
+  }
+  Note: 'Гранула — товарная позиция в счёте-фактуре.'
+}
+
+TableGroup "Хранилище (звезда)" {
+  fact_sales
+  dim_date
+  dim_customer
+  dim_product
+  dim_country
+}
+
+TableGroup "Staging" {
+  stg_online_retail
+}

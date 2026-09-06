@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Аналитический отчёт · Розничные онлайн-продажи</title>
+<style>
+  :root { --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f8fafc; --brand:#2563eb; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+         color:var(--ink); background:var(--bg); line-height:1.55; }
+  .wrap { max-width:1040px; margin:0 auto; padding:40px 28px 80px; }
+  header { border-bottom:3px solid var(--brand); padding-bottom:16px; margin-bottom:28px; }
+  h1 { font-size:26px; margin:0 0 6px; }
+  h2 { font-size:20px; margin:40px 0 14px; padding-top:10px; border-top:1px solid var(--line); }
+  .sub { color:var(--muted); font-size:14px; }
+  .cards { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:22px 0 8px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .card .k { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
+  .card .v { font-size:20px; font-weight:600; margin-top:4px; }
+  ol.findings li { margin:8px 0; }
+  figure { margin:22px 0; background:#fff; border:1px solid var(--line);
+           border-radius:10px; padding:12px; }
+  figure img { width:100%; height:auto; display:block; }
+  table { border-collapse:collapse; width:100%; font-size:13px; background:#fff;
+          border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  th, td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:right; }
+  th:first-child, td:first-child { text-align:left; }
+  thead th { background:#eef2ff; color:var(--ink); }
+  tbody tr:last-child td { border-bottom:none; }
+  footer { margin-top:50px; color:var(--muted); font-size:12px;
+           border-top:1px solid var(--line); padding-top:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Аналитический отчёт: розничные онлайн-продажи</h1>
+    <div class="sub">Источник: Online Retail II (UCI ML Repository). Сформировано {{ generated_at }}.</div>
+  </header>
+
+  <p>Отчёт построен на данных хранилища <code>retail_dwh</code> (модель «звезда»)
+  и агрегирующих витринах. Ниже — ключевые показатели, основные выводы и
+  визуализации по направлениям: динамика и сезонность продаж, структура
+  ассортимента (ABC), география, сегментация клиентов (RFM), возвраты.</p>
+
+  <h2>Ключевые показатели</h2>
+  <div class="cards">
+    {% for k, v in kpi_cards %}
+    <div class="card"><div class="k">{{ k }}</div><div class="v">{{ v }}</div></div>
+    {% endfor %}
+  </div>
+
+  <h2>Основные выводы</h2>
+  <ol class="findings">
+    {% for f in findings %}<li>{{ f }}</li>{% endfor %}
+  </ol>
+
+  <h2>Визуализации</h2>
+  {% for fig in figures %}
+  <figure>
+    <img src="{{ fig.src }}" alt="{{ fig.name }}">
+  </figure>
+  {% endfor %}
+
+  <h2>ABC-анализ ассортимента</h2>
+  <table>
+    <thead><tr><th>Класс</th><th>Товаров</th><th>Доля позиций</th>
+      <th>Выручка</th><th>Доля выручки</th></tr></thead>
+    <tbody>
+    {% for r in abc %}
+      <tr><td>{{ r.abc_class }}</td><td>{{ "{:,}".format(r.products) }}</td>
+        <td>{{ "%.1f%%"|format(r.products_share*100) }}</td>
+        <td>£{{ "{:,.0f}".format(r.revenue) }}</td>
+        <td>{{ "%.1f%%"|format(r.revenue_share*100) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>RFM-сегменты клиентов</h2>
+  <table>
+    <thead><tr><th>Сегмент</th><th>Клиентов</th><th>Ср. Recency, дн.</th>
+      <th>Ср. Frequency</th><th>Ср. Monetary</th><th>Доля выручки</th></tr></thead>
+    <tbody>
+    {% for r in seg %}
+      <tr><td>{{ r.segment }}</td><td>{{ "{:,}".format(r.customers) }}</td>
+        <td>{{ "%.0f"|format(r.avg_recency) }}</td>
+        <td>{{ "%.1f"|format(r.avg_frequency) }}</td>
+        <td>£{{ "{:,.0f}".format(r.avg_monetary) }}</td>
+        <td>{{ "%.1f%%"|format(r.revenue_share*100) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Топ-10 товаров по выручке</h2>
+  <table>
+    <thead><tr><th>Артикул</th><th>Наименование</th><th>Категория</th>
+      <th>Выручка</th><th>Ед.</th></tr></thead>
+    <tbody>
+    {% for r in top %}
+      <tr><td>{{ r.stock_code }}</td><td>{{ r.description }}</td><td>{{ r.category }}</td>
+        <td>£{{ "{:,.0f}".format(r.revenue) }}</td>
+        <td>{{ "{:,}".format(r.units) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Топ-10 стран по выручке</h2>
+  <table>
+    <thead><tr><th>Страна</th><th>Регион</th><th>Выручка</th>
+      <th>Заказы</th><th>Клиенты</th></tr></thead>
+    <tbody>
+    {% for r in countries %}
+      <tr><td>{{ r.country_name }}</td><td>{{ r.region }}</td>
+        <td>£{{ "{:,.0f}".format(r.revenue) }}</td>
+        <td>{{ "{:,}".format(r.orders) }}</td>
+        <td>{{ "{:,}".format(r.customers) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <footer>
+    Отчёт сгенерирован автоматически: <code>analytics/03_visualization.py</code>.
+    Интерактивные версии графиков — в <code>reports/figures/*.html</code>.
+  </footer>
+</div>
+</body>
+</html>

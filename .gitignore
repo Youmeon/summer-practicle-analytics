@@ -1,0 +1,25 @@
+# Окружение
+.venv/
+__pycache__/
+*.pyc
+.env
+
+# Данные (тяжёлые, скачиваются скриптом)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Артефакты аналитики
+reports/figures/*
+reports/tables/*
+reports/report.html
+reports/index.html
+reports/*.docx
+!reports/figures/.gitkeep
+!reports/tables/.gitkeep
+
+# Прочее
+.ipynb_checkpoints/
+.DS_Store
+*.log
